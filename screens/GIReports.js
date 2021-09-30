@@ -12,7 +12,7 @@ import { Platform,
   ToastAndroid,
   Alert,
 ActivityIndicator,
-PermissionsAndroid,
+ PermissionsAndroid,
 FlatList} from 'react-native';
 import moment from "moment";
 import {Container, Card, Thumbnail, Body, Right, Left, CardItem,Button, Icon, Header,Title, List, Item, Input} from 'native-base';
@@ -24,25 +24,28 @@ var dateFormat = require('dateformat');
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import SegmentedControlTab from "react-native-segmented-control-tab";
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Loader from '../component/Loader';
+import DataTable from "./DataTable";
+import { Grid, Col, Row } from "react-native-easy-grid";
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import XLSX from 'xlsx';
 import { writeFile, DownloadDirectoryPath } from 'react-native-fs';
 
 
 
-class riderDetails extends Component{
+
+class GIReports extends Component {
   _listeners = [];
   constructor(props) {
     super(props);
-    const id = this.props.route.params.id;
-    const name = this.props.route.params.name;
-      const email = this.props.route.params.email;
     this.ref = firestore();
     this.unsubscribe = null;
     this.unsubscribes = null;
     this.state = {
       user: null,
-      email: email,
+      email: "",
       password: "",
       formValid: true,
       error: "",
@@ -51,7 +54,6 @@ class riderDetails extends Component{
       uid:'',
       store_path: '',
       currentDate: new Date(),
-      id: id,
       printModal: false,
       devices: null,
       pairedDs:[],
@@ -69,16 +71,16 @@ class riderDetails extends Component{
       address:'',
       city:'',
       Addwallet: 0,
-      names: name,
       AdminWallet:0,
       isDatePickerVisible: false,
       isDatePickerVisibleEnd: false,
       dateRangeModal: false,
       startDate: "",
       endDate: "",
-      RiderWallet: this.props.route.params.wallet,
+        selectedIndex: 0
     };
      }
+         
 
     showDatePickerEnd = () => {
 this.setState({isDatePickerVisibleEnd: true})
@@ -111,10 +113,8 @@ this.setState({isDatePickerVisible: true})
   onCollectionUpdate = (querySnapshot) => {
     const orders = [];
     querySnapshot.forEach((doc) => {
-     orders.push ({
-            datas : doc.data(),
-            key : doc.id
-            });
+        console.log('first: ', doc.data())
+     orders.push (doc.data());
     })
 
     this.setState({
@@ -127,7 +127,71 @@ this.setState({isDatePickerVisible: true})
   TotalAmount(){
     let total = 0
   this.state.dataSource.forEach((item) => {
-    total += this.storeTotal(item.datas.Products) + item.datas.delivery_charge + item.datas.extraKmCharge - item.datas.discount
+    total += item.subtotal+item.delivery_charge+item.extraKmCharge-item.discount 
+  
+})
+return total;
+  }
+ TotalSubtotal(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+    total += item.subtotal
+  
+})
+return total;
+  }
+ TotalDeliveryCharge(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+    total += item.delivery_charge
+  
+})
+return total;
+  }
+
+ TotalExtra(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+    total += item.extraKmCharge
+  
+})
+return total;
+  }
+
+ TotalDiscount(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+    total += item.discount 
+  
+})
+return total;
+  }
+
+  TotalAmountStore(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+      item.account ==="Store"?
+    total += item.Amount :0
+  
+})
+return total;
+  }
+
+   TotalStoreTransaction(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+      item.account ==="Store"?
+    total += 1 :0
+  
+})
+return total;
+  }
+
+
+     TotalRiderTransaction(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+    total += 1 
   
 })
 return total;
@@ -151,35 +215,34 @@ return total;
 
 
   _bootstrapAsync = () =>{
-    const today = this.state.currentDate;
-    const date_ordered = moment(today).format('MMMM Do YYYY, h:mm:ss a');
-    const week_no = moment(today , "MMDDYYYY").isoWeek();
-    const time =  moment(today).format('h:mm:ss a');
-    const date = moment(today).format('MMMM D, YYYY');
-    let Name = 'id';
-    let Date = 'Date';
-    let path = 'DeliveredBy.'+'id';
-    let paths = 'OrderDetails.'+'Date';
-      this.unsubscribe = this.ref.collection('orders').where('DeliveredBy.id', '==', this.state.id).where('OrderStatus','==', 'Delivered')
-      .where('OrderDetails.Date','==', date).onSnapshot(this.onCollectionUpdate) ;
+    const today = moment().unix();
+    const month = moment().add(-30, 'days').unix();
+    console.log('today: ', today);
+      console.log('month: ', month);
+      this.unsubscribe = this.ref.collection('orders').where('OrderStatus','==', 'Delivered').where('Timestamp','>=', month)
+      .where('Timestamp','<=', today).onSnapshot(
+                querySnapshot => {
+                    const orders = []
+                    querySnapshot.forEach(doc => {
+                        console.log('doc.data(): ',doc.data())
+                        orders.push(doc.data())
+                    });
+                    this.setState({
+      dataSource : orders,
+      loading: false,
+      
+   })
+                },
+                error => {
+                    console.log(error)
+                }
+            );
     };
 
-    storeTotal(items){
-      const {orders} = this.state;
-      let total = 0;
-      items.forEach(item => {
-              if(item.sale_price){
-                  total += item.sale_price * item.qty
-              }else{
-                  total += item.price * item.qty
-              }      
-      });
-      return total;
-  }
+ 
 
   componentDidMount() {
     this.setState({loading: true})
-     this.getAdminWallet();
     this._bootstrapAsync();
 
     BluetoothManager.isBluetoothEnabled().then((enabled)=> {
@@ -239,7 +302,7 @@ haveNewValue = () =>{
     const endDate = this.state.endDate;
     const date_ordered = moment(startDate).unix();
         const date_orderedendDate = moment(endDate).unix();
-      this.unsubscribes = this.ref.collection('orders').where('DeliveredBy.id', '==', this.state.id).where('OrderStatus','==', 'Delivered').where('Timestamp','>=', date_ordered)
+      this.unsubscribes = this.ref.collection('orders').where('OrderStatus','==', 'Delivered').where('Timestamp','>=', date_ordered)
       .where('Timestamp','<=', date_orderedendDate).onSnapshot(
                 querySnapshot => {
                     const orders = []
@@ -262,33 +325,9 @@ haveNewValue = () =>{
             )
     };
 
-    
-    storeTotal(items){
-      const {orders} = this.state;
-      let total = 0;
-      items.forEach(item => {
-              if(item.sale_price){
-                  total += item.sale_price * item.qty
-              }else{
-                  total += item.price * item.qty
-              }      
-      });
-      return total;
-  }
-getAdminWallet =async () =>{
-    this.unsubscribe = this.ref.collection('charges').where('id', '==', 'admin000001' ).onSnapshot(this.onCollectionUpdategetAdminWallet);
-    };
+ 
 
 
-  onCollectionUpdategetAdminWallet = (querySnapshot) => {
-    querySnapshot.forEach((doc) => {
-
-      this.setState({
-          AdminWallet:doc.data().AdminWallet,
-
-     });
-    });
-  }
   _deviceAlreadPaired(rsp) {
     var ds = null;
     if (typeof(rsp.devices) == 'object') {
@@ -413,47 +452,20 @@ _scan() {
           alert('error' + JSON.stringify(er));
       });
 }
-  updateTextInput = (text, field) => {
-    const state = this.state
-    state[field] = text;
-    this.setState(state);
-  }
-EditWallet(){
-  if(this.state.Addwallet > this.state.AdminWallet){
-    Alert.alert(
-        'Insufficient Balance',
-        'You only have '+ this.state.AdminWallet + ' on your account',
-        [
-          { text: 'OK', onPress: () => null }
-        ],
-        { cancelable: false }
-      );
-      return
-  }
-firestore().collection('charges').doc('delivery_charge').update({AdminWallet: firestore.FieldValue.increment(-parseFloat(this.state.Addwallet))})
-firestore().collection('riders').doc(this.state.id).update({wallet: firestore.FieldValue.increment(parseFloat(this.state.Addwallet))})
-firestore().collection('LoadHistory').add({PrevWallet:parseFloat(this.state.RiderWallet), Amount: parseFloat(this.state.Addwallet), RiderId: this.state.id, account: 'Rider', DateLoaded: moment().unix(), riderName:this.state.names, riderEmail: this.state.email })
-  Alert.alert(
-        'Transaction Successfull',
-        'You have successfully updated the wallet',
-        [
-          { text: 'OK', onPress: () => this.props.navigation.goBack()}
-        ],
-        { cancelable: false }
-      );
-}
-  render(){
-    
+  
+
+  render() {
+
 var hash = Object.create(null),
     result = [];
 
-                
 this.state.dataSource.forEach(function (o) {
-    if (!hash[o.key]) {
-        hash[o.key] = { order_no: o.datas.OrderNo, date: moment(o.datas.OrderDetails.Date).format('MM/D/YYYY'), Status: o.datas.OrderStatus, delivery_charge:o.datas.delivery_charge, extra_charge:o.datas.extraKmCharge, total: o.datas.subtotal + o.datas.delivery_charge + o.datas.extraKmCharge- o.datas.discount };
-        result.push(hash[o.key]);
+    if (!hash[o.OrderId]) {
+        hash[o.OrderId] = { order_no: o.OrderNo, date: moment(o.Timestamp*1000).format('MM/D/YYYY'), subtotal: o.subtotal, delivery_charge:o.delivery_charge, extra_charge:o.extraKmCharge, discount: o.discount, total: 0 ,addons: o.choice };
+        result.push(hash[o.OrderId]);
     }
 
+    hash[o.OrderId].total += +parseFloat(o.subtotal+o.delivery_charge+o.extraKmCharge-o.discount).toFixed(2);
 });
 console.log('sum: ',result);
 
@@ -511,33 +523,93 @@ console.log('sum: ',result);
 
 
 
+
+
+
+       const renderItem = ({ item,index }) => {
+
+        return(
+          <View key={index}>
+            <Row style={{marginVertical: 5}}>     
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{item.OrderNo}</Text>
+            </Col>  
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{moment(item.Timestamp*1000).format('MM/D/YY')}</Text>
+            </Col>   
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{'₱' + parseFloat(item.subtotal).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col>
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                  <Text  style={styles.textColor}>{'₱' + parseFloat(item.delivery_charge).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col>
+           
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{'₱' + parseFloat(item.extraKmCharge).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col>
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{'₱' + parseFloat(item.discount).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col> 
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+            <Text  style={styles.textColor}>{'₱' + parseFloat(item.subtotal+item.delivery_charge+item.extraKmCharge-item.discount).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col>
+
+        </Row>
+        {item.addons !== undefined? item.addons.map((addonInformation, index)=>{
+          return( <Row style={{marginVertical: 5}} key={index}>    
+        {console.log('addonInformation.data: ', addonInformation.data)} 
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{addonInformation.label}</Text>
+            </Col>   
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>&nbsp;</Text>
+            </Col>
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                  <Text  style={styles.textColor}>{'₱' + parseFloat(0).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col>
+           
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{'₱' + parseFloat(addonInformation.price).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col>
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+                <Text  style={styles.textColor}>{item.qty}</Text>
+            </Col> 
+            <Col  style={[styles.ColStyle,{alignItems: 'center'}]}>
+            <Text  style={styles.textColor}>{'₱' + parseFloat(item.qty*addonInformation.price).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+            </Col>
+
+        </Row>)}):null}
+        </View>
+        );   
+      }
+
     return (
-      <Container>
-  
-        <Header androidStatusBarColor="#2c3e50" style={{display:'none'}} style={{backgroundColor: 'rgba(56, 172, 236, 1)'}}>
-          <Left style={{flex:1}}>      
+        <Container style={{backgroundColor: '#fdfdfd'}}>
+        <Header androidStatusBarColor="#2c3e50" style={{display:'none'}} style={{backgroundColor: 'salmon'}}>
+               <Left> 
                  <Button transparent onPress={()=> this.props.navigation.goBack()}>
-                    <Icon style={{color:'white'}} name='arrow-back' />
-                 </Button> 
-          </Left>
-          <Body style={{flex: 3}}>
-            <Title style={{color:'white'}}>Rider Deliveries</Title>
-          </Body>
-          <Right style={{flex:1}}>
-            
+                 <MaterialIcons name="arrow-back" size={25} color="white" />
+                </Button> 
+               </Left>
+               <Body style={{marginLeft: 20,flex: 3}}>
+                   <Title style={{color: 'white'}}>Gross Income</Title>
+               </Body>
+                 <Right style={{flex:1}}>
+                  <Button transparent onPress={requestRunTimePermission}>
+            <MaterialCommunityIcons name="microsoft-excel" size={28} color={'white'} />
+            </Button>
            <Button transparent  onPress={()=> this.setState({dateRangeModal: true})}>
                     <Icon style={{color:'white'}} name='md-calendar-sharp' />
                  </Button> 
-           <Button transparent  onPress={()=> this.setState({UpdateWallet: true})}>
-                    <Icon style={{color:'white'}} name='wallet' />
+              <Button transparent  onPress={()=> this.setState({printModal: true})}>
+                    <Icon style={{color:'white'}} name='md-print' />
                  </Button> 
-             <Button transparent onPress={requestRunTimePermission}>
-            <MaterialCommunityIcons name="microsoft-excel" size={28} color={'white'} />
-            </Button>
           </Right>
-        </Header>
-
-        <Modal
+               </Header>
+             <Loader loading={this.state.loading}/>
+  
+         <View>
+  <Modal
       isVisible={this.state.dateRangeModal}
       animationInTiming={700}
       animationIn='slideInUp'
@@ -587,78 +659,26 @@ console.log('sum: ',result);
       />
         <ScrollView style={{ backgroundColor: "white", }}>
                 
-
+  <DataTable
+            alignment="center"
+            total ={this.TotalAmount()}
+            TotalDiscount={this.TotalDiscount()}
+            TotalExtra={this.TotalExtra()}
+            TotalDeliveryCharge={this.TotalDeliveryCharge()}
+            TotalSubtotal={this.TotalSubtotal()}
+            headerTitles={['Order #', 'Date', 'Subtotal', 'Delivery Charge', 'Extra Delivery', 'Discount','Total']}
+          >
+              <FlatList
+              keyExtractor={(key) => key.key}
+              data={this.state.dataSource}
+              renderItem={renderItem}
+              extraData={200} 
+              />
+               
+          </DataTable>
             
         <View>
-        <Card transparent> 
-            <CardItem style={{backgroundColor:'lightblue'}}>
-              <Left>
-                <Text >Order #</Text>
-              </Left>
-              <Body>
-                <Text> Status</Text>
-              </Body>
-              <Body>
-                <Text> Date</Text>
-              </Body>
-              <Body>
-                <Text>Delivery Charge</Text>
-              </Body>
-              <Body>
-                <Text>Extra Charge</Text>
-              </Body>
-              <Right>
-                <Text>Total</Text>
-              </Right>
-            </CardItem>
-        </Card>
-        <FlatList
-               data={this.state.dataSource}
-               renderItem={({ item }) => (            
-            <Card transparent>
-              <CardItem style={{paddingTop: 0, paddingBottom: 0}}>
-                <Left style={{flex:1}}>
-                <Text style={{fontSize: 12,  marginBottom: 10}}>
-                    #00{item.datas.OrderNo}
-                  </Text>
-                </Left>
-                <Body style={{paddingLeft: 5,flex:1,}}>
-                  
-                  <Text note style={{fontSize: 12, }}>{item.datas.OrderStatus}</Text>
-   
-                </Body>
-                <Body style={{paddingLeft: 5, flex: 1}}>
-                  
-                  <Text note style={{fontSize: 12,}}>{moment(item.datas.OrderDetails.Date).format('MM/D/YY')}</Text>
-   
-                </Body>
-<Body>
-                  <Text style={{fontSize: 12, marginBottom: 10}}>₱{Math.round(item.datas.delivery_charge)}</Text>
-                </Body>
-                <Body>
-                    <Text style={{fontSize: 12, marginBottom: 10}}>₱{Math.round(item.datas.extraKmCharge)}</Text>
-                </Body>
-                
-                <Right style={{textAlign: 'right'}}>
-                  <Text style={{fontSize: 12, marginBottom: 10}}>₱{Math.round((this.storeTotal(item.datas.Products) + item.datas.delivery_charge + item.datas.extraKmCharge- item.datas.discount)*10)/10}</Text>
-                </Right>
-                </CardItem>
-            </Card>
-           )}
-           keyExtractor={item => item.key}
-       />
-        
-          <View style={{borderTopColor: 'black', borderTopWidth: 2,borderStyle: 'dashed',  borderRadius: 1}}/>
-          <CardItem>
-            <Left>
-              <Text style={{ color: 'black', fontWeight: 'bold', fontSize: 12}}>Total</Text>
-            </Left>
-            <Right>
-              <Text style={{ color:'black', fontWeight: 'bold', fontSize: 12}}>
-              ₱{Math.round(this.TotalAmount()*10)/10}
-              </Text>
-            </Right>
-          </CardItem>
+      
      </View>  
      <View style={{borderTopColor: 'black', borderTopWidth: 2,borderStyle: 'dashed',  borderRadius: 1}}/>
      <View>
@@ -673,7 +693,7 @@ console.log('sum: ',result);
           </CardItem>
           <CardItem>
             <Left>
-              <Text style={{ color: 'gray'}}>No. of Orders:  {this.state.dataSource.length}</Text>
+              <Text style={{ color: 'gray'}}>No. of Transaction:  {this.TotalRiderTransaction()}</Text>
             </Left>
         
           </CardItem>
@@ -681,31 +701,7 @@ console.log('sum: ',result);
      </View>  
     
         </ScrollView>
-        <Modal
-      isVisible={this.state.UpdateWallet}
-      animationInTiming={700}
-      animationIn='slideInUp'
-      animationOut='slideOutDown'
-      animationOutTiming={700}
-      useNativeDriver={true}
-      onBackdropPress={() => this.setState({UpdateWallet: false})} transparent={true}>
-     <Card style={style.content}>
-        <List>
-        
-            
-                    <Text style={{marginTop: 15, fontSize: 10}}>Wallet Add Amount</Text>
-                    <Item regular style={{marginTop: 7}}>
-                        <Input value={this.state.Addwallet.toString()}  keyboardType={'number-pad'} onChangeText={(text) => { isNaN(text)? null:this.updateTextInput(text, 'Addwallet')}} placeholderTextColor="#687373" />
-                    </Item>
-           </List>   
-    
-      <Button block style={{ height: 30, backgroundColor:  "#33c37d", marginTop: 10}}
-        onPress={() => this.EditWallet()}
-      >
-       <Text style={{color:'white'}}>Add Wallet</Text>
-      </Button>
-    </Card>
-    </Modal>
+     
         <Modal
               isVisible={this.state.printModal}
                animationInTiming={1000}
@@ -815,17 +811,17 @@ console.log('sum: ',result);
                             fonttype: 1});
                        await  BluetoothEscposPrinter.printText("--------------------------------\r\n", {});
                          await this.state.dataSource.map((item, i) => {
-                               let num = this.storeTotal(item.datas.Products);
-                               let num2 = item.datas.delivery_charge;
-                               let num3 = item.datas.extraKmCharge;
-                               let numm = item.datas.discount;
+                               let num = this.storeTotal(item.Products);
+                               let num2 = item.delivery_charge;
+                               let num3 = item.extraKmCharge;
+                               let numm = item.discount;
                                let num4 = Math.round((num + num2 + num3 - numm)*10)/10;
                               
                                let total = num4.toString();
                                 
                                   BluetoothEscposPrinter.printColumn(columnWidths,
                                                         [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
-                                                        [`#00${item.datas.OrderNo}`, `${item.datas.OrderStatus}`,`${item.datas.OrderDetails.Date}` ,total ],{encoding: 'GBK',
+                                                        [`#00${item.OrderNo}`, `${item.OrderStatus}`,`${item.OrderDetails.Date}` ,total ],{encoding: 'GBK',
                                                         codepage: 0,
                                                         widthtimes: 0,
                                                         heigthtimes: 0,
@@ -882,12 +878,17 @@ console.log('sum: ',result);
                 </View>
                 </ScrollView>
             </Modal>
-      </Container>
+         </View>
+         
+    
+        
+       </Container>
     );
-}
+  }
+
+
 }
 
-export default riderDetails;
 
 const styles = StyleSheet.create({
   line: {
@@ -938,7 +939,14 @@ const styles = StyleSheet.create({
     address:{
         flex:1,
         textAlign:"right"
-    }
+    }, ColStyle: {
+          width: 80,
+          justifyContent: 'center',
+          borderBottomWidth: 1,
+          borderBottomColor: 'gray',
+          paddingBottom: 5
+      },
+    
 });
 
 const style = StyleSheet.create({
@@ -975,3 +983,5 @@ const style = StyleSheet.create({
       marginBottom: 5,
     },
   });
+export default GIReports;
+

@@ -24,25 +24,28 @@ var dateFormat = require('dateformat');
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import SegmentedControlTab from "react-native-segmented-control-tab";
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Loader from '../component/Loader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import XLSX from 'xlsx';
 import { writeFile, DownloadDirectoryPath } from 'react-native-fs';
 
 
 
-class riderDetails extends Component{
+
+
+
+class AppShare extends Component {
   _listeners = [];
   constructor(props) {
     super(props);
-    const id = this.props.route.params.id;
-    const name = this.props.route.params.name;
-      const email = this.props.route.params.email;
     this.ref = firestore();
     this.unsubscribe = null;
     this.unsubscribes = null;
     this.state = {
       user: null,
-      email: email,
+      email: "",
       password: "",
       formValid: true,
       error: "",
@@ -51,7 +54,6 @@ class riderDetails extends Component{
       uid:'',
       store_path: '',
       currentDate: new Date(),
-      id: id,
       printModal: false,
       devices: null,
       pairedDs:[],
@@ -69,16 +71,16 @@ class riderDetails extends Component{
       address:'',
       city:'',
       Addwallet: 0,
-      names: name,
       AdminWallet:0,
       isDatePickerVisible: false,
       isDatePickerVisibleEnd: false,
       dateRangeModal: false,
       startDate: "",
       endDate: "",
-      RiderWallet: this.props.route.params.wallet,
+        selectedIndex: 0
     };
      }
+         
 
     showDatePickerEnd = () => {
 this.setState({isDatePickerVisibleEnd: true})
@@ -111,6 +113,7 @@ this.setState({isDatePickerVisible: true})
   onCollectionUpdate = (querySnapshot) => {
     const orders = [];
     querySnapshot.forEach((doc) => {
+        console.log('first: ', doc.data())
      orders.push ({
             datas : doc.data(),
             key : doc.id
@@ -127,7 +130,39 @@ this.setState({isDatePickerVisible: true})
   TotalAmount(){
     let total = 0
   this.state.dataSource.forEach((item) => {
-    total += this.storeTotal(item.datas.Products) + item.datas.delivery_charge + item.datas.extraKmCharge - item.datas.discount
+      item.datas.account === "Rider"?
+    total += parseFloat(item.datas.SuperAdminwallet_less) :0
+  
+})
+return parseFloat(total).toFixed(2);
+  }
+
+  TotalAmountStore(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+      item.datas.account ==="store"?
+    total += item.datas.SuperAdminwallet_less :0
+  
+})
+return total;
+  }
+
+   TotalStoreTransaction(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+      item.datas.account ==="store"?
+    total += 1 :0
+  
+})
+return total;
+  }
+
+
+     TotalRiderTransaction(){
+    let total = 0
+  this.state.dataSource.forEach((item) => {
+      item.datas.account ==="Rider"?
+    total += 1 :0
   
 })
 return total;
@@ -151,35 +186,37 @@ return total;
 
 
   _bootstrapAsync = () =>{
-    const today = this.state.currentDate;
-    const date_ordered = moment(today).format('MMMM Do YYYY, h:mm:ss a');
-    const week_no = moment(today , "MMDDYYYY").isoWeek();
-    const time =  moment(today).format('h:mm:ss a');
-    const date = moment(today).format('MMMM D, YYYY');
-    let Name = 'id';
-    let Date = 'Date';
-    let path = 'DeliveredBy.'+'id';
-    let paths = 'OrderDetails.'+'Date';
-      this.unsubscribe = this.ref.collection('orders').where('DeliveredBy.id', '==', this.state.id).where('OrderStatus','==', 'Delivered')
-      .where('OrderDetails.Date','==', date).onSnapshot(this.onCollectionUpdate) ;
+    const today = moment().unix();
+    const month = moment().add(-30, 'days').unix();
+    console.log('today: ', today);
+      console.log('month: ', month);
+      this.unsubscribe = this.ref.collection('SuperAdminCommisionHistory').where('DateCreated','>=', month)
+      .where('DateCreated','<=', today).onSnapshot(
+                querySnapshot => {
+                    const orders = []
+                    querySnapshot.forEach(doc => {
+                        console.log('doc.data(): ',doc.data())
+                        orders.push ({
+            datas : doc.data(),
+            key : doc.id
+            })
+                    });
+                    this.setState({
+      dataSource : orders,
+      loading: false,
+      
+   })
+                },
+                error => {
+                    console.log(error)
+                }
+            );
     };
 
-    storeTotal(items){
-      const {orders} = this.state;
-      let total = 0;
-      items.forEach(item => {
-              if(item.sale_price){
-                  total += item.sale_price * item.qty
-              }else{
-                  total += item.price * item.qty
-              }      
-      });
-      return total;
-  }
+ 
 
   componentDidMount() {
     this.setState({loading: true})
-     this.getAdminWallet();
     this._bootstrapAsync();
 
     BluetoothManager.isBluetoothEnabled().then((enabled)=> {
@@ -239,8 +276,8 @@ haveNewValue = () =>{
     const endDate = this.state.endDate;
     const date_ordered = moment(startDate).unix();
         const date_orderedendDate = moment(endDate).unix();
-      this.unsubscribes = this.ref.collection('orders').where('DeliveredBy.id', '==', this.state.id).where('OrderStatus','==', 'Delivered').where('Timestamp','>=', date_ordered)
-      .where('Timestamp','<=', date_orderedendDate).onSnapshot(
+      this.unsubscribes = this.ref.collection('LoadHistory').where('DateLoaded','>=', date_ordered)
+      .where('DateLoaded','<=', date_orderedendDate).onSnapshot(
                 querySnapshot => {
                     const orders = []
                     querySnapshot.forEach(doc => {
@@ -262,22 +299,7 @@ haveNewValue = () =>{
             )
     };
 
-    
-    storeTotal(items){
-      const {orders} = this.state;
-      let total = 0;
-      items.forEach(item => {
-              if(item.sale_price){
-                  total += item.sale_price * item.qty
-              }else{
-                  total += item.price * item.qty
-              }      
-      });
-      return total;
-  }
-getAdminWallet =async () =>{
-    this.unsubscribe = this.ref.collection('charges').where('id', '==', 'admin000001' ).onSnapshot(this.onCollectionUpdategetAdminWallet);
-    };
+ 
 
 
   onCollectionUpdategetAdminWallet = (querySnapshot) => {
@@ -432,28 +454,46 @@ EditWallet(){
   }
 firestore().collection('charges').doc('delivery_charge').update({AdminWallet: firestore.FieldValue.increment(-parseFloat(this.state.Addwallet))})
 firestore().collection('riders').doc(this.state.id).update({wallet: firestore.FieldValue.increment(parseFloat(this.state.Addwallet))})
-firestore().collection('LoadHistory').add({PrevWallet:parseFloat(this.state.RiderWallet), Amount: parseFloat(this.state.Addwallet), RiderId: this.state.id, account: 'Rider', DateLoaded: moment().unix(), riderName:this.state.names, riderEmail: this.state.email })
   Alert.alert(
         'Transaction Successfull',
         'You have successfully updated the wallet',
         [
-          { text: 'OK', onPress: () => this.props.navigation.goBack()}
+          { text: 'OK', onPress: () => null }
         ],
         { cancelable: false }
       );
 }
-  render(){
-    
+    handleIndexChange = index => {
+    this.setState({
+      ...this.state,
+      selectedIndex: index
+    });
+  };
+
+  render() {
+      
+      const chooseToExport = () => {
+            Alert.alert('Which of the Category To Export?','Choose Categoty to Export',
+                   [
+                       {text: 'Rider', onPress: () => requestRunTimePermission()},
+                       {text: 'Store', onPress: () => requestRunTimePermissionstore()},
+                   ],
+                   {cancelable: false})
+      }
+
+
+
+
+
 var hash = Object.create(null),
     result = [];
 
-                
 this.state.dataSource.forEach(function (o) {
+    if(o.datas.account === 'Rider'){
     if (!hash[o.key]) {
-        hash[o.key] = { order_no: o.datas.OrderNo, date: moment(o.datas.OrderDetails.Date).format('MM/D/YYYY'), Status: o.datas.OrderStatus, delivery_charge:o.datas.delivery_charge, extra_charge:o.datas.extraKmCharge, total: o.datas.subtotal + o.datas.delivery_charge + o.datas.extraKmCharge- o.datas.discount };
+        hash[o.key] = { order_no: o.datas.OrderNo, date: moment(o.datas.DateCreated*1000).format('MM/D/YYYY'), Rider: o.datas.Name, delivery_charge:o.datas.delivery_charge, AppShare:o.datas.SuperAdminwallet_less };
         result.push(hash[o.key]);
-    }
-
+    }}
 });
 console.log('sum: ',result);
 
@@ -476,7 +516,7 @@ console.log('sum: ',result);
         if(granted === PermissionsAndroid.RESULTS.GRANTED){
       
     const date_now = moment().format('MMM-D-YYYY h-mm-a')
-    const name = 'Gross Income ('+ date_now +' )'+'.xlsx'
+    const name = 'Rider App Share ('+ date_now +' )'+'.xlsx'
     const ws= XLSX.utils.json_to_sheet(result);
     console.log('ws: ', ws)
     const wb = XLSX.utils.book_new();
@@ -508,36 +548,94 @@ console.log('sum: ',result);
 
 
 
+        
+    var resultstore = [];
 
+this.state.dataSource.forEach(function (o) {
+    if(o.datas.account === 'store'){
+    if (!hash[o.key]) {
+        hash[o.key] = { order_no: o.datas.OrderNo, date: moment(o.datas.DateCreated*1000).format('MM/D/YYYY'), Store: o.datas.Name, TotalOrder:o.datas.totalOrder, AppShare:o.datas.SuperAdminwallet_less };
+        resultstore.push(hash[o.key]);
+    }}
+});
+console.log('sumstore: ',resultstore);
 
-
-    return (
-      <Container>
+    const requestRunTimePermissionstore=()=>{
+   
+    async function externalStoragePermission(){
+      try{
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'External Storage Write Permission',
+            message: 'App needs access to storage data',
+          }
+        );
+        if(granted === PermissionsAndroid.RESULTS.GRANTED){
+      
+    const date_now = moment().format('MMM-D-YYYY h-mm-a')
+    const name = 'Store App Share ('+ date_now +' )'+'.xlsx'
+    const ws= XLSX.utils.json_to_sheet(resultstore);
+    console.log('ws: ', ws)
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, date_now+" report");
+    const wbout =XLSX.write(wb, {type: 'binary', bookType: "xlsx"});
+    const file = DDP + name;
   
-        <Header androidStatusBarColor="#2c3e50" style={{display:'none'}} style={{backgroundColor: 'rgba(56, 172, 236, 1)'}}>
-          <Left style={{flex:1}}>      
+  
+    writeFile(file, output(wbout), 'ascii').then((res)=> {
+      Alert.alert("Exportfile Success", "Exported to "+ file);
+    }).catch((err) => {Alert.alert('exporting file error ', 'Export is not Available');});
+  
+  
+        }else{
+          Alert.alert('Permission Denied');
+        }
+      } catch(err){
+        Alert.alert('Write Permission err: ', err);
+        console.warn(err);
+      }
+    }
+  
+    if (Platform.OS === 'android'){
+      externalStoragePermission();
+    }else{console.log('not android')
+  
+    }
+  }
+    return (
+        <Container style={{backgroundColor: '#fdfdfd'}}>
+        <Header androidStatusBarColor="#2c3e50" style={{display:'none'}} style={{backgroundColor: 'salmon'}}>
+               <Left> 
                  <Button transparent onPress={()=> this.props.navigation.goBack()}>
-                    <Icon style={{color:'white'}} name='arrow-back' />
-                 </Button> 
-          </Left>
-          <Body style={{flex: 3}}>
-            <Title style={{color:'white'}}>Rider Deliveries</Title>
-          </Body>
-          <Right style={{flex:1}}>
-            
+                 <MaterialIcons name="arrow-back" size={25} color="white" />
+                </Button> 
+               </Left>
+               <Body style={{marginLeft: 20,flex: 3}}>
+                   <Title style={{color: 'white'}}>App Share</Title>
+               </Body>
+                 <Right style={{flex:1}}>
+                   <Button transparent onPress={chooseToExport}>
+            <MaterialCommunityIcons name="microsoft-excel" size={28} color={'white'} />
+            </Button>
            <Button transparent  onPress={()=> this.setState({dateRangeModal: true})}>
                     <Icon style={{color:'white'}} name='md-calendar-sharp' />
                  </Button> 
-           <Button transparent  onPress={()=> this.setState({UpdateWallet: true})}>
-                    <Icon style={{color:'white'}} name='wallet' />
+              <Button transparent  onPress={()=> this.setState({printModal: true})}>
+                    <Icon style={{color:'white'}} name='md-print' />
                  </Button> 
-             <Button transparent onPress={requestRunTimePermission}>
-            <MaterialCommunityIcons name="microsoft-excel" size={28} color={'white'} />
-            </Button>
           </Right>
-        </Header>
-
-        <Modal
+               </Header>
+             <Loader loading={this.state.loading}/>
+        <SegmentedControlTab
+          values={["Riders", "Store"]}
+          tabsContainerStyle={{marginTop: 10}}
+          selectedIndex={this.state.selectedIndex}
+          onTabPress={this.handleIndexChange}
+        />
+         {this.state.selectedIndex ===0?
+         <View>
+  <Modal
       isVisible={this.state.dateRangeModal}
       animationInTiming={700}
       animationIn='slideInUp'
@@ -592,58 +690,53 @@ console.log('sum: ',result);
         <View>
         <Card transparent> 
             <CardItem style={{backgroundColor:'lightblue'}}>
+           
               <Left>
                 <Text >Order #</Text>
               </Left>
               <Body>
-                <Text> Status</Text>
+                <Text>Rider</Text>
               </Body>
-              <Body>
-                <Text> Date</Text>
+               <Body>
+                <Text>Date</Text>
               </Body>
               <Body>
                 <Text>Delivery Charge</Text>
               </Body>
-              <Body>
-                <Text>Extra Charge</Text>
-              </Body>
               <Right>
-                <Text>Total</Text>
+                <Text>App Share</Text>
               </Right>
             </CardItem>
         </Card>
         <FlatList
                data={this.state.dataSource}
-               renderItem={({ item }) => (            
-            <Card transparent>
+               renderItem={({ item }) => (    
+                   item.datas.account ==="Rider"    ?    
+               <Card transparent>
               <CardItem style={{paddingTop: 0, paddingBottom: 0}}>
-                <Left style={{flex:1}}>
-                <Text style={{fontSize: 12,  marginBottom: 10}}>
-                    #00{item.datas.OrderNo}
-                  </Text>
-                </Left>
-                <Body style={{paddingLeft: 5,flex:1,}}>
+              
+                <Left style={{marginLeft: -2,flex:1,}}>
                   
-                  <Text note style={{fontSize: 12, }}>{item.datas.OrderStatus}</Text>
+                  <Text note style={{fontSize: 12, }}>{item.datas.OrderNo}</Text>
    
+                </Left>
+                
+<Body>
+                  <Text style={{fontSize: 12, marginBottom: 10}}>{item.datas.Name}</Text>
                 </Body>
                 <Body style={{paddingLeft: 5, flex: 1}}>
                   
-                  <Text note style={{fontSize: 12,}}>{moment(item.datas.OrderDetails.Date).format('MM/D/YY')}</Text>
-   
-                </Body>
-<Body>
-                  <Text style={{fontSize: 12, marginBottom: 10}}>₱{Math.round(item.datas.delivery_charge)}</Text>
-                </Body>
-                <Body>
-                    <Text style={{fontSize: 12, marginBottom: 10}}>₱{Math.round(item.datas.extraKmCharge)}</Text>
-                </Body>
-                
+                  <Text note style={{fontSize: 12,}}>{moment(item.datas.DateCreated*1000).format('MM/D/YY')}</Text>
+                    </Body>
+                <Body style={{paddingLeft: 5, flex: 1}}>
+                  
+                <Text style={{fontSize: 12, marginBottom: 10}}>₱{parseFloat(item.datas.delivery_charge).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+                    </Body>
                 <Right style={{textAlign: 'right'}}>
-                  <Text style={{fontSize: 12, marginBottom: 10}}>₱{Math.round((this.storeTotal(item.datas.Products) + item.datas.delivery_charge + item.datas.extraKmCharge- item.datas.discount)*10)/10}</Text>
+                  <Text style={{fontSize: 12, marginBottom: 10}}>₱{parseFloat(item.datas.SuperAdminwallet_less).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
                 </Right>
                 </CardItem>
-            </Card>
+            </Card>:null
            )}
            keyExtractor={item => item.key}
        />
@@ -655,7 +748,7 @@ console.log('sum: ',result);
             </Left>
             <Right>
               <Text style={{ color:'black', fontWeight: 'bold', fontSize: 12}}>
-              ₱{Math.round(this.TotalAmount()*10)/10}
+              ₱{this.TotalAmount()}
               </Text>
             </Right>
           </CardItem>
@@ -673,7 +766,7 @@ console.log('sum: ',result);
           </CardItem>
           <CardItem>
             <Left>
-              <Text style={{ color: 'gray'}}>No. of Orders:  {this.state.dataSource.length}</Text>
+              <Text style={{ color: 'gray'}}>No. of Transaction:  {this.TotalRiderTransaction()}</Text>
             </Left>
         
           </CardItem>
@@ -681,31 +774,7 @@ console.log('sum: ',result);
      </View>  
     
         </ScrollView>
-        <Modal
-      isVisible={this.state.UpdateWallet}
-      animationInTiming={700}
-      animationIn='slideInUp'
-      animationOut='slideOutDown'
-      animationOutTiming={700}
-      useNativeDriver={true}
-      onBackdropPress={() => this.setState({UpdateWallet: false})} transparent={true}>
-     <Card style={style.content}>
-        <List>
-        
-            
-                    <Text style={{marginTop: 15, fontSize: 10}}>Wallet Add Amount</Text>
-                    <Item regular style={{marginTop: 7}}>
-                        <Input value={this.state.Addwallet.toString()}  keyboardType={'number-pad'} onChangeText={(text) => { isNaN(text)? null:this.updateTextInput(text, 'Addwallet')}} placeholderTextColor="#687373" />
-                    </Item>
-           </List>   
-    
-      <Button block style={{ height: 30, backgroundColor:  "#33c37d", marginTop: 10}}
-        onPress={() => this.EditWallet()}
-      >
-       <Text style={{color:'white'}}>Add Wallet</Text>
-      </Button>
-    </Card>
-    </Modal>
+     
         <Modal
               isVisible={this.state.printModal}
                animationInTiming={1000}
@@ -882,12 +951,342 @@ console.log('sum: ',result);
                 </View>
                 </ScrollView>
             </Modal>
-      </Container>
+         </View>
+         
+         :
+         //START OF STORE!!!
+
+
+<View>
+  <Modal
+      isVisible={this.state.dateRangeModal}
+      animationInTiming={700}
+      animationIn='slideInUp'
+      animationOut='slideOutDown'
+      animationOutTiming={700}
+      useNativeDriver={true}
+      onBackdropPress={() => this.setState({dateRangeModal: false})} transparent={true}>
+     <Card style={style.content}>
+       
+        <List>
+        
+            
+                    <Text style={{marginTop: 15, fontSize: 10}}>Start Date/Time</Text>
+                    <Item regular style={{marginTop: 7, padding: 10}}>
+                       <TouchableOpacity onPress={this.showDatePicker} style={{width: '100%'}}>
+<Text>{this.state.startDate===""?'Start Date/Time':moment(this.state.startDate).format('MMM D, YYYY h:mm a')}</Text>
+</TouchableOpacity>
+
+                    </Item>
+                        <Text style={{marginTop: 15, fontSize: 10}}>End Date/Time</Text>
+                    <Item regular style={{marginTop: 7, padding: 10}}>
+                   
+<TouchableOpacity onPress={this.showDatePickerEnd} style={{width: '100%'}}>
+<Text>{this.state.endDate ===""?'End Date/Time':moment(this.state.endDate).format('MMM D, YYYY h:mm a')}</Text>
+</TouchableOpacity>
+                    </Item>
+           </List>   
+    
+      <Button block style={{ height: 30, backgroundColor:  "#33c37d", marginTop: 10}}
+        onPress={() => this.GetData()}
+      >
+       <Text style={{color:'white'}}>Get Data</Text>
+      </Button>
+    </Card>
+    </Modal>
+<DateTimePickerModal
+        isVisible={this.state.isDatePickerVisible}
+        mode="datetime"
+        onConfirm={this.handleConfirm}
+        onCancel={this.hideDatePicker}
+      />
+      <DateTimePickerModal
+        isVisible={this.state.isDatePickerVisibleEnd}
+        mode="datetime"
+        onConfirm={this.handleConfirmEnd}
+        onCancel={this.hideDatePickerEnd}
+      />
+        <ScrollView style={{ backgroundColor: "white", }}>
+                
+
+            
+        <View>
+        <Card transparent> 
+            <CardItem style={{backgroundColor:'lightblue'}}>
+           
+              <Left>
+                <Text >Order #</Text>
+              </Left>
+              <Body>
+                <Text>Store</Text>
+              </Body>
+               <Body>
+                <Text>Date</Text>
+              </Body>
+              <Body>
+                <Text>Total Order</Text>
+              </Body>
+              <Right>
+                <Text>App Share</Text>
+              </Right>
+            </CardItem>
+        </Card>
+        <FlatList
+               data={this.state.dataSource}
+               renderItem={({ item }) => (    
+                   item.datas.account ==="store"    ?    
+            <Card transparent>
+              <CardItem style={{paddingTop: 0, paddingBottom: 0}}>
+              
+                <Left style={{marginLeft: -2,flex:1,}}>
+                  
+                  <Text note style={{fontSize: 12, }}>{item.datas.OrderNo}</Text>
+   
+                </Left>
+                
+<Body>
+                  <Text style={{fontSize: 12, marginBottom: 10}}>{item.datas.Name}</Text>
+                </Body>
+                <Body style={{paddingLeft: 5, flex: 1}}>
+                  
+                  <Text note style={{fontSize: 12,}}>{moment(item.datas.DateCreated*1000).format('MM/D/YY')}</Text>
+                    </Body>
+                <Body style={{paddingLeft: 5, flex: 1}}>
+                  
+                <Text style={{fontSize: 12, marginBottom: 10}}>₱{parseFloat(item.datas.totalOrder).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+                    </Body>
+                <Right style={{textAlign: 'right'}}>
+                  <Text style={{fontSize: 12, marginBottom: 10}}>₱{parseFloat(item.datas.SuperAdminwallet_less).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+                </Right>
+                </CardItem>
+            </Card>:null
+           )}
+           keyExtractor={item => item.key}
+       />
+        
+          <View style={{borderTopColor: 'black', borderTopWidth: 2,borderStyle: 'dashed',  borderRadius: 1}}/>
+          <CardItem>
+            <Left>
+              <Text style={{ color: 'black', fontWeight: 'bold', fontSize: 12}}>Total</Text>
+            </Left>
+            <Right>
+              <Text style={{ color:'black', fontWeight: 'bold', fontSize: 12}}>
+              ₱{Math.round(this.TotalAmountStore()*10)/10}
+              </Text>
+            </Right>
+          </CardItem>
+     </View>  
+     <View style={{borderTopColor: 'black', borderTopWidth: 2,borderStyle: 'dashed',  borderRadius: 1}}/>
+     <View>
+          <CardItem>
+            <Left>
+
+            </Left>
+  
+            <Right>
+             
+            </Right>
+          </CardItem>
+          <CardItem>
+            <Left>
+              <Text style={{ color: 'gray'}}>No. of Transaction:  {this.TotalStoreTransaction()}</Text>
+            </Left>
+        
+          </CardItem>
+          
+     </View>  
+    
+        </ScrollView>
+     
+        <Modal
+              isVisible={this.state.printModal}
+               animationInTiming={1000}
+            animationIn='slideInUp'
+            animationOut='slideOutDown'
+            animationOutTiming={1000}
+            useNativeDriver={true}
+              onBackdropPress={() => this.setState({printModal: false})} transparent={true}>
+                 <ScrollView contentContainerStyle={styles.container}>
+                <Text style={styles.title}>Open Bluetooth Before Scanning </Text>
+                <View>
+                <View style={{flexDirection: 'row', alignContent: "center", justifyContent: "center"}}>
+                <Text>Turn On Switch</Text>
+                <Switch value={this.state.open} onValueChange={(v)=>{
+                this.setState({
+                    loading:true
+                })
+                if(!v){
+                    BluetoothManager.disableBluetooth().then(()=>{
+                        this.setState({
+                          open:false,
+                            loading:false,
+                            foundDs:[],
+                            pairedDs:[]
+                        });
+                    },(err)=>{alert(err)});
+
+                }else{
+                    BluetoothManager.enableBluetooth().then((r)=>{
+                        var paired = [];
+                        if(r && r.length>0){
+                            for(var i=0;i<r.length;i++){
+                                try{
+                                    paired.push(JSON.parse(r[i]));
+                                }catch(e){
+                                    //ignore
+                                }
+                            }
+                        }
+                        this.setState({
+                          open:true,
+                            loading:false,
+                            pairedDs:paired
+                        })
+                    },(err)=>{
+                        this.setState({
+                            loading:false
+                        })
+                        alert(err)
+                    });
+                }
+            }}/>
+            </View>
+            <View style={{paddingHorizontal : 30, paddingVertical: 10}}>
+                    <Button block disabled={this.state.loading || !this.state.open} onPress={()=>
+                        this._scan()
+                    }><Text>Scan</Text></Button>
+            </View>
+                </View>
+                <Text  style={styles.title}>Connected:<Text style={{color:"blue"}}>{!this.state.name ? 'No Devices' : this.state.name}</Text></Text>
+                <Text  style={styles.title}>Found(tap to connect):</Text>
+                {this.state.loading ? (<ActivityIndicator animating={true}/>) : null}
+                <View>
+                {this.state.foundDs &&
+                    this._renderRow(this.state.foundDs)
+                }
+                </View>
+                <Text  style={styles.title}>Paired:</Text>
+                {this.state.loading ? (<ActivityIndicator animating={true}/>) : null}
+                <View style={{flex:1,flexDirection:"column"}}>
+                {
+                    this._renderRow(this.state.pairedDs)
+                }
+                </View>
+
+                <View style={{flexDirection:"column",justifyContent:"space-around",paddingVertical:10 , paddingHorizontal: 30}}>         
+                <Button block  color="tomato" disabled={this.state.loading|| !(this.state.bleOpend && this.state.boundAddress.length > 0) }
+                        title="Print Receipt" onPress={async () => {
+                    try {
+                        await BluetoothEscposPrinter.printerInit();
+                        await BluetoothEscposPrinter.printerLeftSpace(0);
+
+                        await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.CENTER);
+                        await BluetoothEscposPrinter.setBlob(0);
+                        await  BluetoothEscposPrinter.printText(`Daily Report (Rider)\r\n`, {
+                            encoding: 'GBK',
+                            codepage: 0,
+                            widthtimes: 1,
+                            heigthtimes: 0,
+                            fonttype: 2
+                        });
+                        
+                        await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
+                        await  BluetoothEscposPrinter.printText("Date / Time " + (dateFormat(new Date(), "yyyy-mm-dd h:MM:ss")) + "\r\n", {});
+                        await  BluetoothEscposPrinter.printText(`Rider:  ${this.state.names}\r\n`, {});
+               
+                        await  BluetoothEscposPrinter.printText("--------------------------------\r\n", {});
+                        let columnWidths = [7, 12, 15, 7];
+                        let columnWidths2 =[34, 0,0, 7 ];
+                
+                        await BluetoothEscposPrinter.printColumn(columnWidths,
+                            [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+                            ["Order #", 'Status', 'Date', 'Total'], {encoding: 'GBK',
+                            codepage: 0,
+                            widthtimes: 0,
+                            heigthtimes: 0,
+                            fonttype: 1});
+                       await  BluetoothEscposPrinter.printText("--------------------------------\r\n", {});
+                         await this.state.dataSource.map((item, i) => {
+                               let num = this.storeTotal(item.datas.Products);
+                               let num2 = item.datas.delivery_charge;
+                               let num3 = item.datas.extraKmCharge;
+                               let numm = item.datas.discount;
+                               let num4 = Math.round((num + num2 + num3 - numm)*10)/10;
+                              
+                               let total = num4.toString();
+                                
+                                  BluetoothEscposPrinter.printColumn(columnWidths,
+                                                        [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+                                                        [`#00${item.datas.OrderNo}`, `${item.datas.OrderStatus}`,`${item.datas.OrderDetails.Date}` ,total ],{encoding: 'GBK',
+                                                        codepage: 0,
+                                                        widthtimes: 0,
+                                                        heigthtimes: 0,
+                                                        fonttype: 1})
+                                                        
+                          
+                          });
+                        await  BluetoothEscposPrinter.printText("--------------------------------\r\n", {});
+                        await BluetoothEscposPrinter.printColumn(columnWidths,
+                          [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+                          ["Total", "", "",`${Math.round(this.TotalAmount()*10)/10}`], {encoding: 'GBK',
+                          codepage: 0,
+                          widthtimes: 0,
+                          heigthtimes: 0,
+                          fonttype: 2})
+                        await  BluetoothEscposPrinter.printText("--------------------------------\r\n", {});
+                        await BluetoothEscposPrinter.printColumn(columnWidths2,
+                                                    [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+                                                    ["Summary", "", "",""], {encoding: 'GBK',
+                                                    codepage: 0,
+                                                    widthtimes: 0,
+                                                    heigthtimes: 0,
+                                                    fonttype: 2})
+                        await  BluetoothEscposPrinter.printText("\r\n", {});
+                        await BluetoothEscposPrinter.printColumn(columnWidths2,
+                          [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+                          ["Total No. of Orders Delivered", "", "", `${this.state.dataSource.length}`], {encoding: 'GBK',
+                          codepage: 0,
+                          widthtimes: 0,
+                          heigthtimes: 0,
+                          fonttype: 1})
+                        await  BluetoothEscposPrinter.printText("\r\n", {});
+                        await BluetoothEscposPrinter.printColumn(columnWidths2,
+                          [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+                          ["Total Amount Delivered", "", "",`${Math.round(this.TotalAmount()*10)/10}`], {encoding: 'GBK',
+                          codepage: 0,
+                          widthtimes: 0,
+                          heigthtimes: 0,
+                          fonttype: 1})
+                        await  BluetoothEscposPrinter.printText("\r\n", {});
+                        await  BluetoothEscposPrinter.printText("--------------------------------\r\n", {});
+                        await  BluetoothEscposPrinter.printText("\r\n", {});
+                        await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
+                    } catch (e) {
+                        alert(e.message || "ERROR");
+                    }
+
+                }}><Text>Print</Text></Button>
+                 
+                </View>
+                <View style={{ paddingHorizontal: 30}}>
+                <Button block  color="tomato" 
+                         onPress={()=> this.setState({printModal: false})}><Text>Close</Text></Button>
+                </View>
+                </ScrollView>
+            </Modal>
+         </View>
+         
+
+
+         }
+        
+       </Container>
     );
-}
+  }
+
+
 }
 
-export default riderDetails;
 
 const styles = StyleSheet.create({
   line: {
@@ -975,3 +1374,5 @@ const style = StyleSheet.create({
       marginBottom: 5,
     },
   });
+export default AppShare;
+

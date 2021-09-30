@@ -7,6 +7,7 @@ import { Card, Divider } from 'react-native-elements';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import moment from "moment";
+import messaging from '@react-native-firebase/messaging';
 
 class Home extends Component{
   constructor(props) {
@@ -15,17 +16,34 @@ class Home extends Component{
     this.subscribe= null;
     this.state = {
       dataSource:[],
-      data:[]
+      data:[],
+      wallet:0,
     };
 }
 
 componentDidMount(){
   this._bootstrapAsync();
- // fcmService.register(this.onRegister, this.onNotification, this.onOpenNotification)
+  this.getWallet();
+   messaging().getToken().then(token=>{
+      console.log('Admintoken: ', token)
+    })
 
 }
 
-          
+          getWallet =async () =>{
+    this.unsubscribe = this.ref.collection('charges').where('id', '==', 'admin000001' ).onSnapshot(this.onCollectionUpdategetWallet);
+    };
+
+
+  onCollectionUpdategetWallet = (querySnapshot) => {
+    querySnapshot.forEach((doc) => {
+
+      this.setState({
+          wallet:doc.data().AdminWallet,
+
+     });
+    });
+  }
   onCollectionUpdate = (querySnapshot) => {
     const orders = [];
     querySnapshot.forEach((doc) => {
@@ -130,11 +148,20 @@ onOpenNotification(notify){
     return (
       <Container>
         <CustomHeader title="Dashboard" isHome={true} navigation={this.props.navigation}/>
+         <Card containerStyle={styles.card}>
+				<Text style={styles.notes}>Admin Wallet Balance</Text>
+				
+				<View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
+					<Image style={{width:70, height:70}} source={require('../assets/Wallet.png')} />
+          <Text style={styles.time}>₱{parseFloat(this.state.wallet).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')}</Text>
+				</View>
+
+			</Card>
         <Card containerStyle={styles.card}>
 				<Text style={styles.notes}>Today's Order</Text>
 				
 				<View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
-					<Image style={{width:70, height:70}} source={require('../assets/bill.png')} />
+					<Image style={{width:70, height:70}} source={require('../assets/AdminOrder1.png')} />
 					<Text style={styles.time}>{this.state.dataSource.length}</Text>
 				</View>
 
@@ -158,10 +185,10 @@ onOpenNotification(notify){
 				</View>
 			</Card>
       <Card containerStyle={styles.card}>
-				<Text style={styles.notes}>Total Registered User</Text>
+				<Text style={styles.notes}>Number of Registered Users</Text>
 				
 				<View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
-					<Image style={{width:70, height:70}} source={require('../assets/user.png')} />
+					<Image style={{width:70, height:70}} source={require('../assets/users.png')} />
           <Text style={styles.time}>{this.state.data.length}</Text>
 				</View>
 
@@ -191,7 +218,7 @@ const styles = StyleSheet.create({
 		borderRadius:20
 	},
 	time:{
-		fontSize:38,
+		fontSize:30,
 		color:'#fff'
 	},
 	notes: {

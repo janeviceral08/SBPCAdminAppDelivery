@@ -37,7 +37,7 @@ class Delivered extends Component{
           })
       
           this.setState({
-            dataSource : orders,
+            dataSource : orders.sort((a,b)=> a.datas.OrderNo - b.datas.OrderNo),
             loading: false,
          })
       
@@ -45,8 +45,11 @@ class Delivered extends Component{
      
         _bootstrapAsync = () =>{
           const today = new Date();
+          console.log('month now: ', moment().format('MMMM'))
            const week_no = moment(today , "MMDDYYYY").isoWeek();
-            this.unsubscribe = this.ref.collection('orders').where('OrderStatus', '==', "Delivered").where('OrderDetails.Week_No', '==', week_no).onSnapshot(this.onCollectionUpdate) ;
+           const month_now = moment().format('MMMM');
+               const year_now = moment().format('YYYY');
+            this.unsubscribe = this.ref.collection('orders').where('OrderStatus', '==', "Delivered").where('OrderDetails.Month', '==', month_now).where('OrderDetails.Year', '==', year_now).onSnapshot(this.onCollectionUpdate) ;
           };
      
     

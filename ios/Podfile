@@ -32,6 +32,12 @@ target 'NewKusinahanglanAdmin' do
 
   pod 'react-native-viewpager', :path => '../node_modules/@react-native-community/viewpager'
 
+  pod 'ReactNativeGetLocation', :path => '../node_modules/react-native-get-location'
+
+  pod 'react-native-image-picker', :path => '../node_modules/react-native-image-picker'
+
+  pod 'RNFS', :path => '../node_modules/react-native-fs'
+
   target 'NewKusinahanglanAdminTests' do
     inherit! :complete
     # Pods for testing

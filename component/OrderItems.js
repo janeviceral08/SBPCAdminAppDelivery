@@ -22,7 +22,7 @@ class OrderItems extends Component{
             qty: 0,
             quantity: 0,
             price: 0,
-            name:''
+            name:'',
         } 
     }
     storeTotal(){
@@ -45,7 +45,7 @@ class OrderItems extends Component{
         });
         return total+addonTotal;
     }
-
+  
     updateTextInput = (text, field) => {
         const state = this.state
         state[field] = text;
@@ -223,6 +223,7 @@ class OrderItems extends Component{
             <Text style={{fontSize: 15, fontWeight: 'bold', color: 'salmon'}}>Total</Text>
             <Text style={{fontSize: 15, fontWeight: 'bold', color: 'salmon'}}>₱{Math.round(this.storeTotal()*10)/10}</Text>
             </View>
+           
             <Modal
                 isVisible={this.state.visibleModal}
                 animationInTiming={700}

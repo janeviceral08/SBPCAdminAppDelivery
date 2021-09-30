@@ -127,7 +127,7 @@ export default class Open extends Component {
                     <Text note style={{fontSize: 10}}><Text style={{fontWeight: 'bold', fontSize: 11}}>ID# :</Text> {item.datas.id}</Text>
                 </Body>
 
-                <TouchableOpacity  
+                {item.datas.wallet <1?null:<TouchableOpacity  
                     onPress={()=> this.toggleProduct(item.datas.id, item.datas.status, item.datas.admin_control)}
                     style={{width: 30, height: 30, backgroundColor: 'lightgray',borderRadius: 10, justifyContent: 'center', alignItems: 'center'}}>
                     {item.datas.status && item.datas.admin_control ? 
@@ -135,7 +135,7 @@ export default class Open extends Component {
                     <Icon  name="ios-eye"  style={{ color: "rgba(56, 172, 236, 1)", textAlign: 'center', fontWeight:'bold' }}/>
                     }
                     
-                </TouchableOpacity>
+                </TouchableOpacity>}
 
               </CardItem>
         </Card>

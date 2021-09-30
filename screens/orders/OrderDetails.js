@@ -16,6 +16,7 @@ import {Container, CardItem, Body, Card, Left, Right, List, ListItem, Button} fr
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Octicons from 'react-native-vector-icons/Octicons';
 import Fontisto from 'react-native-vector-icons/Fontisto';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { FlatList } from 'react-native-gesture-handler';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
@@ -23,6 +24,8 @@ import OrderItems from '../../component/OrderItems';
 import Modal from 'react-native-modal';
 import {BluetoothEscposPrinter, BluetoothManager, BluetoothTscPrinter} from "react-native-bluetooth-escpos-printer";
 import RNImmediatePhoneCall from 'react-native-immediate-phone-call';
+import axios from 'axios';
+import moment from 'moment';
 import Loader from '../../component/Loader';
 var {height, width} = Dimensions.get('window');
 var dateFormat = require('dateformat');
@@ -31,7 +34,8 @@ class OrderDetails extends Component{
   _listeners = [];
 constructor(props){
     super(props);
-    this.ref = firestore().collection('riders');
+    this.ref = firestore().collection('riders').where('status', '==', true);
+     this.refCharges = firestore();
     const orders = this.props.route.params.orders;
     this.state={
         orders: orders,
@@ -51,7 +55,18 @@ constructor(props){
         name:'',
         store_name:'',
         address:'',
-        city:''
+        city:'',
+        loading: false,
+        del_charge : '',
+          driverCharge: '',
+          extra_charge: '',
+          labor_charge: '',
+          pickup_charge: '',
+          succeding: '',
+          amount_base: '',
+          rider_commision: '',
+          SuperAdminStoreCommision: 0,
+          SuperAdminRiderCommision: 0,
     }
   
 }
@@ -88,6 +103,7 @@ onCollectionUpdate = (querySnapshot) => {
                 });
             }
     });
+    console.log('store total: ', total+addonTotal)
     return total+addonTotal;
 }
  
@@ -124,10 +140,57 @@ onsetDelivered(){
 }
 
 setDelivered(){
+   
+    const commision =  (this.state.orders.delivery_charge+this.state.orders.extraKmCharge)*this.state.rider_commision;
+    const update_Commision = firestore().collection('riders').doc(this.state.orders.DeliveredBy.id);
+      update_Commision.update({ 
+        wallet: firestore.FieldValue.increment(-commision)
+    })
+     firestore().collection('charges').doc('delivery_charge').update({AdminWallet: firestore.FieldValue.increment(-commision*this.state.SuperAdminRiderCommision)})
+    firestore().collection('SuperAdminCommisionHistory').add({SuperAdminwallet_less: commision*this.state.SuperAdminRiderCommision,riderCommision: commision, account: 'Rider', Id: this.state.orders.DeliveredBy.id, Name: this.state.orders.DeliveredBy.Name, delivery_charge: this.state.orders.delivery_charge+this.state.orders.extraKmCharge, OrderNo:this.state.orders.OrderNo, DateCreated: moment().unix() })
+    this.storeID().map(items => {
+let storeIds = items.storeId;
+
+    let totalLess = 0;
+        let addonTotalLess = 0;
+    let total = 0;
+        let addonTotal = 0;
+        this.state.orders.Products.forEach(item => {
+            console.log('storeIds: ', storeIds);
+            console.log('item storeID: ', item)
+            if(storeIds == item.storeId){
+                if(item.sale_price){
+                    totalLess += item.sale_price * item.qty,
+                     total += (item.sale_price * item.qty)*item.labor_charge
+                }else{
+                    totalLess += item.price * item.qty,
+                     total += (item.price * item.qty)*item.labor_charge
+                }
+                
+            }
+            if(item.choice){
+            item.choice.forEach(addon => { 
+                addonTotal += (addon.price  * item.qty)*item.labor_charge
+            });
+          }
+        });
+        let store_wallet = total+addonTotal;
+let store_walletLess = totalLess+addonTotalLess;
+    console.log('stores com:', totalLess+addonTotalLess);
+        const update_Commision = firestore().collection('stores').doc(storeIds);
+      update_Commision.update({ 
+        wallet: firestore.FieldValue.increment(-store_wallet)
+    })
+    firestore().collection('charges').doc('delivery_charge').update({AdminWallet: firestore.FieldValue.increment(-(store_wallet*this.state.SuperAdminStoreCommision))})
+    firestore().collection('SuperAdminCommisionHistory').add({SuperAdminwallet_less: parseFloat(store_wallet*this.state.SuperAdminStoreCommision), account: 'store', Id: items.storeId, Name: items.store_name, totalOrder: store_walletLess, OrderNo:this.state.orders.OrderNo, DateCreated: moment().unix(), adminCommision: store_wallet })
+})
     const ref = firestore().collection('orders').doc(this.state.orders.OrderId);
     ref.update({ 
-        OrderStatus: 'Delivered'
+        OrderStatus: 'Delivered',
+        riderLessWallet:this.state.rider_commision ,
+        AppShare:parseFloat(this.state.SuperAdminStoreCommision),
     })
+
 
     this.props.navigation.goBack();
 }
@@ -178,22 +241,55 @@ onCall(item){
 }
 
 acceptOrder(item){
+    this.setState({loading: true,})
     const ref = firestore().collection('orders').doc(this.state.orders.OrderId);
     const notif_ref = firestore().collection('notification').doc(this.state.orders.OrderId);
     ref.update({ 
         OrderStatus : "Processing",
+        rider_id:item.userId,
         DeliveredBy : {           
             Name: item.Name,
             token: item.token,
             id: item.userId
         },
     })
-    notif_ref.set({ 
-      notification_token : this.state.orders.notification_token,
-      user_token: this.state.orders.user_token,
-      rider_token: item.token  
-  })
-    this.props.navigation.goBack();
+    /* const notif_info={title:'New Order to Deliver',
+     body:'You have Order No. '+ this.state.orders.OrderNo,
+     key:'AIzaSyCuo41kP9We1Gnvs3S2iiPRA_8KER9aftE',
+                        tokens: item.token,
+                      }
+     axios.post('https://deliverynotifapp.herokuapp.com/notifications/sendToRider', notif_info)
+                      .then(res =>{
+                          console.log('datas', res.data)
+                          if(res.data == 'sucess'){
+
+
+
+                                                    const notif_infosendToStore={title:'New Order to Process',
+                            body:'You have Order No. '+ this.state.orders.OrderNo,
+                            key:'AIzaSyCuo41kP9We1Gnvs3S2iiPRA_8KER9aftE',
+                                                tokens: this.state.orders.notification_token,
+                                            }
+                            axios.post('https://deliverynotifapp.herokuapp.com/notifications/sendToStore', notif_infosendToStore)
+                                            .then(res =>{
+                                                console.log('datas', res.data)
+                                                if(res.data == 'sucess'){
+                                                    console.log('DONE!')*/
+                                                    this.setState({loading: false,})
+                                                this.props.navigation.goBack();
+                                               /* }
+                                                else{
+                                                    console.log('Please Try Again');
+                                                }
+                                                
+                                            });
+                          }
+                          else{
+                              console.log('Please Try Again');
+                          }
+                          
+                      });*/
+    
 }
 
 cancelConfirmation(){
@@ -217,10 +313,32 @@ cancelOrder(){
     ref.update({ OrderStatus : "Cancelled" })
     this.props.navigation.goBack();
 }
+getDelivery = async() =>{
+   
+    const getData= this.refCharges.collection('charges').doc('delivery_charge');
+    const doc = await getData.get();
+    if (!doc.exists) {
+  console.log('No such document!');
+} else {
+  console.log('Document data:', doc.data());
+  this.setState({
+          del_charge : doc.data().del_charge,
+          driverCharge: doc.data().driverCharge,
+          extra_charge: doc.data().extra_charge,
+          labor_charge: doc.data().labor_charge,
+          pickup_charge: doc.data().pickup_charge,
+          succeding: doc.data().succeding,
+          amount_base: doc.data().del_charge,
+          rider_commision: doc.data().rider_commision,
+            SuperAdminStoreCommision: doc.data().SuperAdminStoreCommision,
+          SuperAdminRiderCommision: doc.data().SuperAdminRiderCommision,
+       })}
+    };
 
 
 componentDidMount(){
     this.storeID();
+    this.getDelivery();
     this.unsubscribe = this.ref.onSnapshot(this.onCollectionUpdate);
 
     BluetoothManager.isBluetoothEnabled().then((enabled)=> {
@@ -273,6 +391,59 @@ componentDidMount(){
 }
 
 
+componentWillUnmount(){
+    this.storeID();
+    this.getDelivery();
+    this.unsubscribe = this.ref.onSnapshot(this.onCollectionUpdate);
+
+    BluetoothManager.isBluetoothEnabled().then((enabled)=> {
+      this.setState({
+          bleOpend: Boolean(enabled),
+          loading: false
+      })
+  }, (err)=> {
+      err
+  });
+
+  if (Platform.OS === 'ios') {
+      let bluetoothManagerEmitter = new NativeEventEmitter(BluetoothManager);
+      this._listeners.push(bluetoothManagerEmitter.addListener(BluetoothManager.EVENT_DEVICE_ALREADY_PAIRED,
+          (rsp)=> {
+              this._deviceAlreadPaired(rsp)
+          }));
+      this._listeners.push(bluetoothManagerEmitter.addListener(BluetoothManager.EVENT_DEVICE_FOUND, (rsp)=> {
+          this._deviceFoundEvent(rsp)
+      }));
+      this._listeners.push(bluetoothManagerEmitter.addListener(BluetoothManager.EVENT_CONNECTION_LOST, ()=> {
+          this.setState({
+              name: '',
+              boundAddress: ''
+          });
+      }));
+  } else if (Platform.OS === 'android') {
+      this._listeners.push(DeviceEventEmitter.addListener(
+          BluetoothManager.EVENT_DEVICE_ALREADY_PAIRED, (rsp)=> {
+              this._deviceAlreadPaired(rsp)
+          }));
+      this._listeners.push(DeviceEventEmitter.addListener(
+          BluetoothManager.EVENT_DEVICE_FOUND, (rsp)=> {
+              this._deviceFoundEvent(rsp)
+          }));
+      this._listeners.push(DeviceEventEmitter.addListener(
+          BluetoothManager.EVENT_CONNECTION_LOST, ()=> {
+              this.setState({
+                  name: '',
+                  boundAddress: ''
+              });
+          }
+      ));
+      this._listeners.push(DeviceEventEmitter.addListener(
+          BluetoothManager.EVENT_BLUETOOTH_NOT_SUPPORT, ()=> {
+              ToastAndroid.show("Device Not Support Bluetooth !", ToastAndroid.LONG);
+          }
+      ))
+  }
+}
 
 storeID (){
     const {orders} = this.state;
@@ -372,8 +543,36 @@ _renderRow(rows){
   
   render(){
     const {orders} = this.state;
+
+console.log('rider minus: ', orders.delivery_charge+orders.extraKmCharge*this.state.rider_commision)
+this.storeID().map(items => {
+let storeIds = items.storeId;
+
+    let total = 0;
+        let addonTotal = 0;
+        this.state.orders.Products.forEach(item => {
+            console.log('storeIds: ', storeIds);
+            console.log('item storeID: ', item)
+            if(storeIds == item.storeId){
+                if(item.sale_price){
+                    total += (item.sale_price * item.qty)*this.state.SuperAdminStoreCommision
+                }else{
+                    total += (item.price * item.qty)*this.state.SuperAdminStoreCommision
+                }
+                
+            }
+            if(item.choice){
+            item.choice.forEach(addon => { 
+                addonTotal += (addon.price  * item.qty)*this.state.SuperAdminStoreCommision
+            });
+          }
+        });
+
+    console.log('stores com:', total+addonTotal);
+})
     return (
       <Container>
+          <Loader loading={this.state.loading} />
         <ScrollView>
         <Card transparent>
             <CardItem style={{backgroundColor:'#E8E8E8', paddingBottom: 0}}>
@@ -396,10 +595,10 @@ _renderRow(rows){
                         <Text style={{color:'salmon',fontSize: 14, fontWeight:'bold'}}> Order Number:</Text><Text> #00{orders.OrderNo}</Text>
                     </View>
                     <View style={{flexDirection: 'row',paddingVertical: 5,paddingHorizontal:10}}>
-                        <Text style={{color:'salmon',fontSize: 14, fontWeight:'bold'}}> Customer :</Text><Text> {orders.AccountInfo.name}</Text>
+                        <Text style={{color:'salmon',fontSize: 14, fontWeight:'bold'}}> Customer :</Text><Text style={{fontSize: 18}}> {orders.AccountInfo.name}</Text>
                     </View>
                     <View style={{flexDirection: 'row',paddingVertical: 5,paddingHorizontal:10}}> 
-                        <Text note style={{color:'salmon', fontSize: 14, fontWeight: 'bold'}}> User Status:</Text><Text> {orders.AccountInfo.status}</Text>
+                        <Text note style={{color:'salmon', fontSize: 14, fontWeight: 'bold'}}> User Status:</Text><Text style={{fontSize: 16}}> {orders.AccountInfo.status}</Text>
                     </View> 
                     <View style={{flexDirection: 'row',paddingVertical: 5,paddingHorizontal:10}}> 
                         <Text note style={{color:'salmon', fontSize: 14, fontWeight: 'bold'}}> Payment Method:</Text><Text> {orders.PaymentMethod}</Text>
@@ -426,8 +625,16 @@ _renderRow(rows){
                     </View> 
                  
                     <View style={{flexDirection: 'row',paddingVertical: 5,paddingHorizontal:10}}> 
-                        <Text note style={{color:'salmon', fontSize: 14, fontWeight: 'bold'}}> Assigned Rider :</Text><Text> {orders.DeliveredBy.Name}</Text>
+                        <Text note style={{color:'salmon', fontSize: 14, fontWeight: 'bold'}}> Assigned Rider :</Text><Text style={{fontSize: 18}}> {orders.DeliveredBy.Name}</Text>
                     </View>  
+                    {orders.RiderCancel < 0 || orders.RiderCancel== undefined?null:  <View>
+                    <View style={{flexDirection: 'row',paddingVertical: 5,paddingHorizontal:10}}> 
+                        <Text numberOfLines={5} note style={{color:'salmon', fontSize: 14, fontWeight: 'bold'}}>Cancelled By Riders:</Text>
+                    </View>  
+                  {orders.RiderCancel.map((info, index) =>  {return(<View style={{flexDirection: 'row',paddingLeft:30, paddingBottom:10}} key={index}> 
+                        <Text>{info.RiderName}- {info.CancelledReason}</Text>
+                    </View>)} )}
+                    </View> }
                 </Body>                                             
             </CardItem>
             <CardItem style={{backgroundColor:'#E8E8E8', paddingBottom: 0}}>
@@ -440,12 +647,13 @@ _renderRow(rows){
                 this.storeID().map(item => {
                     return (
                         <Body style={{flex: 1, marginTop: 5}}>
+                        {console.log('item: ',item)}
                             <View style={{width:'100%', flexDirection:'row', backgroundColor: 'lightblue', padding: 10, borderTopRightRadius: 10, borderTopLeftRadius: 10}}>
                                 <AntDesign name="pushpin" size={18} color="red"/>
                                 <Text  style={{paddingHorizontal: 10,fontWeight:'bold',}}>{item.store_name} </Text>
                             </View>
                             <View style={{flexDirection:'row', backgroundColor: 'white', borderBottomLeftRadius:10,borderBottomRightRadius: 10}}>
-                                <OrderItems navigation={this.props.navigation} id={item.storeId} subtotal={orders.subtotal.toFixed(2)} oid={orders.OrderId} item={orders.Products} />
+                                <OrderItems navigation={this.props.navigation} labor_charge={item.labor_charge}id={item.storeId} subtotal={orders.subtotal.toFixed(2)} oid={orders.OrderId} item={orders.Products} />
                             </View>
                         </Body>
                     )
@@ -513,14 +721,13 @@ _renderRow(rows){
      <FlatList
                data={this.state.data}
                renderItem={({ item }) => (
-              
+              item.datas.wallet > 0?
                 <ListItem onPress={()=> this.onConfirmation(item.datas)}>
                   <Body>
                     <Text>{item.datas.Name}</Text>
-                    <Text note numberOfLines={1}>{item.key}</Text>
                   </Body>
                 </ListItem>
-                    
+                    :null
                )}
                keyExtractor={item => item.key}
                

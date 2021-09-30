@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Loader from '../component/Loader';
+import messaging from '@react-native-firebase/messaging';
 
 export default class Login extends Component  {
     constructor() {
@@ -37,15 +38,18 @@ export default class Login extends Component  {
 
     async componentDidMount(){
       const loggedIn = await AsyncStorage.getItem('uid');
-
+   messaging().getToken().then(token=>{
+      console.log('Admintoken: ', token)
+      AsyncStorage.setItem('Admintoken', token)
+    })
       if (loggedIn){
-        this.props.navigation.navigate('App')
+        this.props.navigation.navigate('Home')
       }else{
-        this.props.navigation.navigate('Auth')
+        this.props.navigation.navigate('Login')
       }
     }
 
-    userLogin = () => {
+    userLogin = async() => {
      
         if(this.state.email === '' && this.state.password === '') {
           Alert.alert('Enter details to signin!')
@@ -53,12 +57,17 @@ export default class Login extends Component  {
           this.setState({
             loading: true,
           })
+          const token= await AsyncStorage.getItem('Admintoken');
         auth()
           .signInWithEmailAndPassword(this.state.email, this.state.password)
           .then((res) => {      
             AsyncStorage.setItem('uid', auth().currentUser.uid);           
             this.setState({loading: false })
-            this.props.navigation.navigate('App')
+             const updateRef = firestore().collection('admin_token').doc('token');
+        updateRef.update({
+          tokens: firestore.FieldValue.arrayUnion(token)
+        });
+            this.props.navigation.navigate('Home')
           })
           .catch(error => this.setState({ errorMessage: error.message, loading: false }))
         }

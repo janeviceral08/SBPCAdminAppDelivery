@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import { Button, Text, View, TouchableOpacity, StyleSheet } from 'react-native';
 
@@ -12,6 +12,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import ViewPagerAdapter from 'react-native-tab-view-viewpager-adapter';
+import messaging from '@react-native-firebase/messaging';
+import notifee from '@notifee/react-native';
 
 import 'react-native-gesture-handler';
 import Home from './screens/Home';
@@ -32,7 +34,16 @@ import AddStore from './screens/AddStore';
 import riderDetails from './screens/riders/riderDetails';
 import TrackRider from './screens/TrackRider';
 import SplashScreen from './auth/Splash';
-
+import DeliveryCharge from './screens/DeliveryCharge';
+import Carousel from './screens/Carousel';
+import Categories from './screens/Categories';
+import AddCategories from './screens/AddCategories';
+import Reports from './screens/Reports';
+import LTP from './screens/LTP';
+import AppShare from './screens/AppShare';
+import GIReports from './screens/GIReports';
+import NPReports from './screens/NPReports';
+import OrderReports from './screens/OrderReports';
 
 
 const Stack = createStackNavigator();
@@ -56,6 +67,26 @@ function appDrawer() {
         component={AddStore} 
         options={{headerShown:false}}
         />  
+          <Stack.Screen 
+        name="DeliveryCharge" 
+        component={DeliveryCharge} 
+        options={{headerShown:false}}
+        />  
+        <Stack.Screen 
+        name="Carousel" 
+        component={Carousel} 
+        options={{headerShown:false}}
+        /> 
+        <Stack.Screen 
+        name="Categories" 
+        component={Categories} 
+        options={{headerShown:false}}
+        /> 
+        <Stack.Screen 
+        name="Reports" 
+        component={ReportsStack} 
+        options={{headerShown:false}}
+        />  
         <Stack.Screen 
         name="TrackRider" 
         component={TrackRider} 
@@ -69,7 +100,43 @@ function appDrawer() {
     </Drawer.Navigator>
   );
 }
-
+function ReportsStack() {
+  return (
+    <Stack.Navigator>
+        <Stack.Screen 
+        name="Home" 
+        component={Reports} 
+        options={{headerShown:false}}
+        /> 
+        <Stack.Screen 
+        name="LTP" 
+        component={LTP} 
+        options={{headerShown:false}}
+        /> 
+           <Stack.Screen 
+        name="AppShare" 
+        component={AppShare} 
+        options={{headerShown:false}}
+        />    
+        <Stack.Screen 
+        name="GIReports" 
+        component={GIReports} 
+        options={{headerShown:false}}
+        />
+          <Stack.Screen 
+        name="NPReports" 
+        component={NPReports} 
+        options={{headerShown:false}}
+        />
+        <Stack.Screen 
+        name="OrderReports" 
+        component={OrderReports} 
+        options={{headerShown:false}}
+        />
+        
+    </Stack.Navigator>
+  );
+}
 function UserStack() {
   return (
     <Stack.Navigator>
@@ -292,6 +359,29 @@ function HomeStack() {
 }
 
 const App = () => {
+    useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      console.log('remoteMessage: ', remoteMessage)
+      const channelId = await notifee.createChannel({
+        id: 'default',
+        name: 'Default Channel',
+        sound: 'notif',
+      });
+  
+      // Display a notification
+      await notifee.displayNotification({
+        title: remoteMessage.notification.title,
+        body: remoteMessage.notification.body,
+        android: {
+          channelId,
+          smallIcon: 'ic_launcher', // optional, defaults to 'ic_launcher'.
+          sound: 'notif',
+        },
+      });
+    });
+
+    return unsubscribe;
+  }, []);
   return (
       <NavigationContainer>
         <Stack.Navigator>

@@ -23,7 +23,8 @@ class Pending extends Component{
           loading: false,
           dataSource: [],
           uid:'',
-          store_path: ''
+          store_path: '',
+          wallet: 0,
         };
          }
         
@@ -50,8 +51,33 @@ class Pending extends Component{
         componentDidMount() {
           this.setState({loading: true})
           this._bootstrapAsync();
+          this.getDelivery();
         }
+
+        
+getDelivery = async() =>{
+  console.log('getDelivery!');
+  const getData= this.ref.collection('charges').where('status', '==', 'process').onSnapshot(
+    querySnapshot => {
+        const orders = []
+        querySnapshot.forEach(doc => {
+            console.log('doc.data(): ',doc.data())
+            this.setState({
+    
+              wallet: doc.data().AdminWallet,
+             })
+        });
+
+    },
+    error => {
+        console.log(error)
+    }
+)
+  };
+
+
   render(){
+    console.log('wallet: ', this.state.wallet)
     return (
       <Container>
         <Loader loading={this.state.loading} />
@@ -60,7 +86,7 @@ class Pending extends Component{
                     data={this.state.dataSource}
                     renderItem={({ item }) => (
                             <Card  containerStyle={styles.card} >
-                            <TouchableOpacity  onPress={() => this.props.navigation.navigate('OrderDetails',{ 'orders' : item.datas, 'path' : this.state.store_path })} > 
+                            <TouchableOpacity  onPress={() => {this.state.wallet < 1? null:this.props.navigation.navigate('OrderDetails',{ 'orders' : item.datas, 'path' : this.state.store_path })}} > 
                               <Text style={styles.notes}>Order No. : 00{item.datas.OrderNo}</Text>      
                               <Divider /> 
                                       <View style={{flexDirection: 'row', justifyContent: "flex-start", alignContent: "flex-start"}}>

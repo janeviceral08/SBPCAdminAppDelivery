@@ -96,7 +96,7 @@ export default class User extends Component {
       <List>
       <ListItem avatar onPress={()=> this.toggleMOdal(item.datas, item.key)}>
         <Left>
-          <Thumbnail source={require('../assets/user.png')} />
+          <Thumbnail source={require('../assets/use.png')} />
         </Left>
         <Body>
           <Text>{item.datas.Name}</Text>
@@ -107,7 +107,7 @@ export default class User extends Component {
 
         <Right style={{justifyContent: "center", alignContent: "center"}}>
           {item.datas.status == "Verified" &&
-             <Octicons name="verified" size={15} color={"blue"} />
+             <Octicons name="check" size={20} color={"green"} />
           }    
         </Right>
       </ListItem>

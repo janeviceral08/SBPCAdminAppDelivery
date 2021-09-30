@@ -19,9 +19,9 @@ class SplashScreen extends React.Component {
     // Preload data using AsyncStorage
     const data = await this.performTimeConsumingTask();
     const isLoggedIn= await AsyncStorage.getItem('uid');
-    
+    console.log('isLoggedIn: ', isLoggedIn)
     if (data !== null) {
-        if (isLoggedIn){
+        if (isLoggedIn == null){
               this.props.navigation.navigate('Login');
         }else{
             this.props.navigation.navigate('Home');

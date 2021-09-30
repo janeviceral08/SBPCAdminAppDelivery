@@ -37,16 +37,16 @@ class Cancelled extends Component{
           })
 
           this.setState({
-            dataSource : orders,
+            dataSource : orders.sort((a,b)=> a.datas.OrderNo - b.datas.OrderNo),
             loading: false,
          })
       
         }
      
         _bootstrapAsync = () =>{
-          const today = new Date();
-          const month = moment(today).format('MMMM');
-          this.unsubscribe = this.ref.collection('orders').where('OrderStatus', '==', "Cancelled").where('OrderDetails.Month', '==', month).onSnapshot(this.onCollectionUpdate) ;
+                     const month_now = moment().format('MMMM');
+               const year_now = moment().format('YYYY');
+          this.unsubscribe = this.ref.collection('orders').where('OrderStatus', '==', "Cancelled").where('OrderDetails.Month', '==', month_now).where('OrderDetails.Year', '==', year_now).onSnapshot(this.onCollectionUpdate) ;
           };
      
     

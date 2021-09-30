@@ -7,7 +7,7 @@ import {
     Platform,
     StyleSheet ,
     StatusBar,
-    ScrollView
+    ScrollView,Image
 } from 'react-native';
 import { Container, View, Left, Right, Button, Icon, Item, Input, DatePicker, Picker } from 'native-base';
 import LinearGradient from 'react-native-linear-gradient';
@@ -17,6 +17,15 @@ import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomHeader from '../component/CustomHeader';
 import Loader from '../component/Loader';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import Entypo from 'react-native-vector-icons/Entypo';
+import Fontisto from 'react-native-vector-icons/Fontisto';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import {imgDefault} from './images';
+import * as ImagePicker from "react-native-image-picker"
+import moment from 'moment';
 
 export default class AddRider extends Component {
         constructor(props) {
@@ -44,7 +53,18 @@ export default class AddRider extends Component {
               cityList:[],
               userTypes: [{userType: 'admin', userName: 'Admin User'}, {userType: 'employee', userName: 'Employee User'}, {userType: 'dev', userName: 'Developer User'}],
               selectedCity: 'Select City/Municipality',
-              selectedBarangay: 'Select Barangay'
+              selectedBarangay: 'Select Barangay',
+              AdminWallet:0,
+                wallet: 0,
+                image: null,
+                FBAccount:'',
+                MotorCR:'',
+                MotorOR:'',
+                MBrand:'',
+                ColorMotor:'',
+                PlateNo:'',
+                Exp:'',
+                License:'',
             };
         }
 
@@ -62,7 +82,22 @@ export default class AddRider extends Component {
   });
   
   }
-
+  openGallery = () => {
+    ImagePicker.launchImageLibrary({
+        maxWidth: 500,
+        maxHeight: 500,
+        mediaType: 'photo',
+        includeBase64: true,
+    }, image => {
+     
+          console.log('base64: ', image);
+        if(image.didCancel== true){
+  console.log('base64: ', image);
+  return;
+        }
+    this.setState({image:image.assets[0].base64})
+                 })
+   }
   onBarangayUpdate = (querySnapshot) => {
     const barangay = [];
    querySnapshot.forEach((doc) => {
@@ -83,12 +118,30 @@ export default class AddRider extends Component {
   }
       
         componentDidMount(){
+          this._bootstrapAsync();
           this.tosubscribe = this.cityRef.onSnapshot(this.onCityUpdate);
         }
+_bootstrapAsync =async () =>{
+    this.unsubscribe = this.ref.collection('charges').where('id', '==', 'admin000001' ).onSnapshot(this.onCollectionUpdate);
+    };
 
+
+  onCollectionUpdate = (querySnapshot) => {
+    querySnapshot.forEach((doc) => {
+
+      this.setState({
+          AdminWallet:doc.data().AdminWallet,
+
+     });
+    });
+  }
         signup() {
           this.setState({ loading: true});
-          if(this.state.email===""||this.state.name===""||this.state.email===""||this.state.password===""||this.state.rePassword===""||this.state.address==""||this.state.selectedBarangay=="Select Barangay"||this.state.selectedCity=="Select City/Municipality"||this.state.province=="") {
+            if(this.state.wallet  > this.state.AdminWallet ){
+            this.setState({hasError: true, errorText: 'Insufficient Wallet Balance. You only have '+parseFloat(this.state.AdminWallet).toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,') +' in your account',loading: false});
+            return;
+          } 
+          if(this.state.wallet===""||this.state.email===""||this.state.name===""||this.state.email===""||this.state.password===""||this.state.rePassword===""||this.state.province=="") {
             this.setState({hasError: true, errorText: 'Please fill all fields !',loading: false});
             return;
           }
@@ -110,10 +163,8 @@ export default class AddRider extends Component {
             return;
           }
           this.setState({hasError: false});
-          const { email, password } = this.state
-          firebase
-            .auth()
-            .createUserWithEmailAndPassword(email, password)
+            auth()
+            .createUserWithEmailAndPassword(this.state.email, this.state.password)
             .then(() => {
               this.saveUserdata();
           })
@@ -124,7 +175,14 @@ export default class AddRider extends Component {
           this.setState({loading: true})
          const newDocumentID = firestore().collection('riders').doc().id;
           const userId = auth().currentUser.uid;
-          this.ref.collection('riders').doc(userId).set({
+  let base64Img = `data:image/jpg;base64,${this.state.image}`;
+    let data = {
+      "file": base64Img,
+      "upload_preset": "bgzuxcoc",
+    }
+   let CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/kusinahanglan/upload';
+if(this.state.image == null){
+   this.ref.collection('riders').doc(userId).set({
             Name: this.state.name,
             Username: this.state.username,
             Mobile: this.state.mobile,
@@ -134,21 +192,78 @@ export default class AddRider extends Component {
             Long:'',
             userId: userId,
             token:'',
-            wallet: 0,
-            Address: {
-              Address: this.state.address,
-              Barangay: this.state.selectedBarangay,
-              City: this.state.selectedCity,
-              Province: this.state.province,
-              Country: 'Philippines'
-            }
+            image: '',
+            wallet: parseFloat(this.state.wallet),
+            status:false,
+            FBAccount: this.state.FBAccount,
+            MotorCR: this.state.MotorCR,
+            MotorOR: this.state.MotorOR,
+            MBrand: this.state.MBrand,
+            ColorMotor: this.state.ColorMotor,
+            PlateNo: this.state.PlateNo,
+            Exp: this.state.Exp,
+            License: this.state.License,
+            Address: this.state.province,
           }).then((docRef) => {
-            this.setState({
-              loading: false,
-            });
-           
-            this.props.navigation.goBack();
+                     firestore().collection('charges').doc('delivery_charge').update({
+        AdminWallet: firestore.FieldValue.increment(-parseFloat(this.state.wallet)),
+        
+    }).then((docRef) => {   
+        this.setState({
+            loading: false,
+          });
+   firestore().collection('LoadHistory').add({PrevWallet:0, Amount: parseFloat(this.state.wallet), RiderId: userId, account: 'Rider', DateLoaded: moment().unix(), riderName:this.state.name, riderEmail: this.state.email })
+                this.props.navigation.goBack()
+    }).catch((error)=> console.log('error in if: ', error))
           })
+
+}
+else{
+fetch(CLOUDINARY_URL, {
+    body: JSON.stringify(data),
+    headers: {
+      'content-type': 'application/json'
+    },
+    method: 'POST',
+  }).then(async r => {
+    let data = await r.json()
+                console.log('url: ', 'https'+data.url.slice(4))
+          this.ref.collection('riders').doc(userId).set({
+            image: 'https'+data.url.slice(4),
+            Name: this.state.name,
+            Username: this.state.username,
+            Mobile: this.state.mobile,
+            Email: this.state.email,
+            Password: this.state.password,
+            Lat:'',
+            Long:'',
+            userId: userId,
+            token:'',
+            wallet: parseFloat(this.state.wallet),
+            status:false,
+            FBAccount: this.state.FBAccount,
+            MotorCR: this.state.MotorCR,
+            MotorOR: this.state.MotorOR,
+            MBrand: this.state.MBrand,
+            ColorMotor: this.state.ColorMotor,
+            PlateNo: this.state.PlateNo,
+            Exp: this.state.Exp,
+            License: this.state.License,
+           Address: this.state.province,
+          }).then((docRef) => {
+                     firestore().collection('charges').doc('delivery_charge').update({
+        AdminWallet: firestore.FieldValue.increment(-parseFloat(this.state.wallet)),
+        
+    }).then((docRef) => {   
+        this.setState({
+            loading: false,
+          });
+  firestore().collection('LoadHistory').add({PrevWallet:0, Amount: parseFloat(this.state.wallet), RiderId: userId, account: 'Rider', DateLoaded: moment().unix(), riderName:this.state.name, riderEmail: this.state.email })
+                this.props.navigation.goBack()
+    })
+          }).catch((error)=> console.log('error in else: ', error))
+           }).catch((error)=> console.log('error in upload: ', error))
+  }
         }
       
         verifyEmail(email) {
@@ -165,67 +280,76 @@ export default class AddRider extends Component {
         <ScrollView contentContainerStyle={{flexGrow: 1}} keyboardShouldPersistTaps="always">
        
           <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', paddingLeft: 50, paddingRight: 50, marginTop: 20}}>
-            
-            <Item>
-                <Icon active name='ios-mail' style={{color: '#687373'}} />
-                <Input placeholder='Email' onChangeText={(text) => this.setState({email: text})} keyboardType="email-address" placeholderTextColor="#687373" />
+             <Item>
+               <TouchableOpacity onPress={this.openGallery} style={{justifyContent:"center",alignContent:"center"}}>
+              <Image style={{  width: 160, height: 160, resizeMode: 'contain',margin: 10}} source={this.state.image === null ? imgDefault:{uri: `data:image;base64,${this.state.image}`}} />
+            </TouchableOpacity>
+            <Item style={{width: '50%'}}>
+                <Icon active name='wallet' style={{color: '#687373'}} />
+                <TextInput style={{flex: 1}} placeholder='Wallet' keyboardType={'number-pad'} onChangeText={(text) => {isNaN(text)? null:this.setState({wallet: text})}} placeholderTextColor="#687373" />
+            </Item>
             </Item>
             <Item>
-                <Icon active name='ios-man' style={{color: '#687373'}} />
+                <MaterialIcons name='sports-motorsports' style={{color: '#687373'}}  size={20}/>
                 <Input placeholder='Name' onChangeText={(text) => this.setState({name: text})} placeholderTextColor="#687373" />
             </Item>
             <Item>
-                <Icon active name='phone-portrait' style={{color: '#687373'}} />
+                <MaterialCommunityIcons name='email' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='Email' onChangeText={(text) => this.setState({email: text})} keyboardType="email-address" placeholderTextColor="#687373" />
+            </Item>
+            
+            <Item>
+                <FontAwesome name='mobile-phone' style={{color: '#687373'}}  size={25}/>
                 <Input placeholder='Mobile Number' onChangeText={(text) => this.setState({mobile: text})} placeholderTextColor="#687373" />
             </Item>
-            <Item>
-                <Icon active name='md-pin' style={{color: '#687373'}} />
-                <Input placeholder='Province' onChangeText={(text) => this.setState({province: text})} placeholderTextColor="#687373" />
+             <Item>
+                <Ionicons name='ios-logo-facebook' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='Facebook Account' onChangeText={(text) => this.setState({FBAccount: text})} placeholderTextColor="#687373" />
             </Item>
             <Item>
-            <Icon active name='md-pin' style={{color: '#687373'}} />
-                    <Picker
-                         selectedValue={this.state.selectedCity}
-                         onValueChange={(itemValue, itemIndex) => 
-                               this.fetchBarangay(itemValue)                        
-                             }>     
-                            <Picker.Item label = {this.state.selectedCity}  value={this.state.selectedCity}  />
-                              {this.state.cityList.map(user => (
-     <Picker.Item label={user.datas.label} value={user.datas.label} />
-  ))        }
-                    </Picker>
-        
+                <Entypo name='location' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='Home Address' style={{ height: 100 }}  multiline={true} onChangeText={(text) => this.setState({province: text})} placeholderTextColor="#687373" />
             </Item>
-           {this.state.selectedCity != 'Select City/Municipality' ?
-           <Item>
-            <Icon active name='md-pin' style={{color: '#687373'}} />
-                    <Picker
-                         selectedValue={this.state.selectedBarangay}
-                         onValueChange={(itemValue, itemIndex) => 
-                             this.setState({selectedBarangay: itemValue})
-                             }>     
-                             <Picker.Item label = {this.state.selectedBarangay}  value={this.state.selectedBarangay}  />
-                                              {this.state.barangayList.map(user => (
-                    <Picker.Item label={user.datas.barangay} value={user.datas.barangay} />
-                  ))        }
-                    </Picker>
-        
-            </Item> : null}
+              
             <Item>
-                <Icon active name='md-pin' style={{color: '#687373'}} />
-                <Input placeholder='Detailed Address' onChangeText={(text) => this.setState({address: text})} placeholderTextColor="#687373" />
-            </Item>
-            <Item>
-         
-              </Item>      
-            <Item>
-                <Icon active name='ios-lock' style={{color: '#687373'}} />
+                <Icon active name='ios-lock-closed' style={{color: '#687373'}} />
                 <Input placeholder='Password' onChangeText={(text) => this.setState({password: text})} secureTextEntry={true} placeholderTextColor="#687373" />
             </Item>
             <Item>
-                <Icon active name='ios-lock' style={{color: '#687373'}} />
+                <Icon active name='ios-lock-closed' style={{color: '#687373'}} />
                 <Input placeholder='Repeat your password' onChangeText={(text) => this.setState({rePassword: text})} secureTextEntry={true} placeholderTextColor="#687373" />
             </Item>
+
+ <Item>
+                <FontAwesome name='drivers-license' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='License Number' onChangeText={(text) => this.setState({License: text})} placeholderTextColor="#687373" />
+            </Item>
+             <Item>
+                <Fontisto name='date' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='License Expiration Date' onChangeText={(text) => this.setState({Exp: text})} placeholderTextColor="#687373" />
+            </Item>
+             <Item>
+                <FontAwesome active name='motorcycle' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='Plate Number' onChangeText={(text) => this.setState({PlateNo: text})} placeholderTextColor="#687373" />
+            </Item>
+             <Item>
+                <FontAwesome active name='motorcycle' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='Color of Motorcycle' onChangeText={(text) => this.setState({ColorMotor: text})} placeholderTextColor="#687373" />
+            </Item>
+             <Item>
+                <FontAwesome active name='motorcycle' style={{color: '#687373'}} size={20} />
+                <Input placeholder='Brand of Motorcycle' onChangeText={(text) => this.setState({MBrand: text})} placeholderTextColor="#687373" />
+            </Item>
+             <Item>
+                  <FontAwesome active name='file-text' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='Official Receipt' onChangeText={(text) => this.setState({MotorOR: text})} placeholderTextColor="#687373" />
+            </Item>
+             <Item>
+                  <FontAwesome active name='file-text' style={{color: '#687373'}}  size={20}/>
+                <Input placeholder='Certificate of Registration' onChangeText={(text) => this.setState({MotorCR: text})} placeholderTextColor="#687373" />
+            </Item>
+           
+
             {this.state.hasError?<Text style={{color: "#c0392b", textAlign: 'center', marginTop: 10}}>{this.state.errorText}</Text>:null}
             <View style={{alignItems: 'center'}}>
               <Button onPress={() => this.signup()} style={{backgroundColor: 'tomato', marginVertical: 20,width: '100%',
